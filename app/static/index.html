@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Pacific BioArchive</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">MULTI-CLOUD WILDLIFE OBSERVATION</p>
+        <h1>Pacific BioArchive</h1>
+      </div>
+      <div class="identity">
+        <span id="user-name">Checking session…</span>
+        <button class="quiet" id="switch-user" type="button">Switch demo user</button>
+      </div>
+    </header>
+
+    <main>
+      <aside class="notice" id="mode-notice">
+        <strong>Local demonstration mode.</strong> The current user is an isolated test identity. Production deployment uses AWS Cognito and signed cloud URLs.
+      </aside>
+
+      <section class="hero">
+        <div>
+          <p class="eyebrow">SECURE MEDIA PIPELINE</p>
+          <h2>Upload once. Find every observation.</h2>
+          <p>Images and videos are checksum-deduplicated, tagged, indexed, and ready for cross-habitat research.</p>
+        </div>
+        <form id="upload-form" class="upload-card">
+          <label for="upload-file">Add wildlife media</label>
+          <input id="upload-file" name="file" type="file" accept="image/*,video/*" required>
+          <button type="submit">Upload and process</button>
+          <p class="form-note">Images create compressed, aspect-ratio-preserving thumbnails.</p>
+        </form>
+      </section>
+
+      <section class="control-grid">
+        <article>
+          <h3>Find by tags</h3>
+          <p>Use comma-separated <code>species:minimum</code> pairs. All conditions must match.</p>
+          <form id="tag-search-form" class="inline-form">
+            <input id="tag-search" placeholder="e.g. bos_taurus:1, felis_catus:1" aria-label="Tag counts">
+            <button type="submit">Search</button>
+          </form>
+        </article>
+        <article>
+          <h3>Find by species</h3>
+          <form id="species-search-form" class="inline-form">
+            <input id="species-search" placeholder="e.g. casuarius_casuarius" aria-label="Species">
+            <button type="submit">Search</button>
+          </form>
+        </article>
+        <article>
+          <h3>Resolve a thumbnail URL</h3>
+          <p>Find the full-size media URL for one of your thumbnails.</p>
+          <form id="thumbnail-resolve-form" class="inline-form">
+            <input id="thumbnail-url" type="url" placeholder="/api/media/.../thumbnail" aria-label="Thumbnail URL">
+            <button type="submit">Resolve</button>
+          </form>
+        </article>
+        <article>
+          <h3>Find by a file</h3>
+          <p>Processes a temporary query image without adding it to the archive.</p>
+          <form id="query-file-form" class="inline-form">
+            <input id="query-file" type="file" accept="image/*" required aria-label="Query image">
+            <button type="submit">Match</button>
+          </form>
+        </article>
+        <article>
+          <h3>Watch a species</h3>
+          <form id="subscribe-form" class="inline-form">
+            <input id="subscribe-species" placeholder="e.g. sus_scrofa" aria-label="Species subscription">
+            <button type="submit">Subscribe</button>
+          </form>
+        </article>
+      </section>
+
+      <section class="collection-head">
+        <div>
+          <p class="eyebrow">YOUR ARCHIVE</p>
+          <h2 id="result-title">Recent media</h2>
+        </div>
+        <div class="bulk-tools">
+          <input id="bulk-tags" placeholder="tags, comma separated" aria-label="Tags to modify">
+          <button type="button" id="add-tags">Add tags</button>
+          <button type="button" id="remove-tags" class="quiet">Remove tags</button>
+          <button type="button" id="delete-media" class="danger">Delete selected</button>
+        </div>
+      </section>
+
+      <p id="status" class="status" role="status"></p>
+      <section id="media-grid" class="media-grid" aria-live="polite"></section>
+    </main>
+    <template id="media-card-template">
+      <article class="media-card">
+        <label class="select"><input type="checkbox" class="media-select"><span>Select</span></label>
+        <a class="preview-link" target="_blank" rel="noopener"><img class="thumbnail" alt="Wildlife media thumbnail"></a>
+        <div class="media-body">
+          <p class="filename"></p>
+          <p class="metadata"></p>
+          <div class="tags"></div>
+          <a class="source-link" target="_blank" rel="noopener">Open full-size media</a>
+        </div>
+      </article>
+    </template>
+    <script src="/app.js"></script>
+  </body>
+</html>
