@@ -1,0 +1,9 @@
+[project]
+name = "pacific-bioarchive"
+version = "0.1.0"
+description = "Multi-cloud serverless wildlife media archive"
+requires-python = ">=3.12"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_default_fixture_loop_scope = "function"

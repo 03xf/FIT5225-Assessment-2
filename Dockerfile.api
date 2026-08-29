@@ -1,0 +1,15 @@
+FROM python:3.12-slim
+
+WORKDIR /var/task
+COPY requirements.txt /var/task/requirements.txt
+RUN pip install --no-cache-dir awslambdaric -r /var/task/requirements.txt
+COPY app /var/task/app
+COPY models/model-manifest.json models/labels.txt /var/task/models/
+
+ENV PACIFICBIO_ENV=production \
+    PACIFICBIO_INFERENCE_MODE=remote_cloud_run \
+    PACIFICBIO_STORAGE_ROOT=/tmp/pacificbio \
+    PACIFICBIO_MODEL_MANIFEST=/var/task/models/model-manifest.json
+
+ENTRYPOINT ["/usr/local/bin/python", "-m", "awslambdaric"]
+CMD ["app.lambda_handler.handler"]

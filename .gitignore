@@ -1,0 +1,15 @@
+.venv/
+tools/
+__pycache__/
+.pytest_cache/
+.terraform/
+terraform.tfstate
+terraform.tfstate.*
+infra/terraform/terraform.tfvars
+.env
+data/
+uploads/
+models/*.pt
+tests/fixtures/test_images/
+*.sqlite3
+*.log
