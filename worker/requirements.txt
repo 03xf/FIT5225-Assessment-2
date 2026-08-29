@@ -1,5 +1,0 @@
-megadetector
-torch
-torchvision
-numpy
-oss2

@@ -1,2 +1,0 @@
-"""Pacific BioArchive application package."""
-
