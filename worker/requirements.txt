@@ -1,0 +1,7 @@
+megadetector
+onnx2torch==1.5.15
+onnx==1.16.2
+torch==2.3.1
+torchvision==0.18.1
+numpy
+oss2

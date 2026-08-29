@@ -1,0 +1,12 @@
+{
+  "active_version": "supplied-2026-08",
+  "detector": {
+    "uri": "models/mdv5a.pt",
+    "sha256": "fe3e90e4b1955821ab7c1f88b446dc0c8cb25e109fdd1872916a55305294a5ef"
+  },
+  "classifier": {
+    "uri": "models/model.pt",
+    "labels_uri": "models/labels.txt",
+    "sha256": "dfc99bd1e0c8b14c6755f4504460c414f678e72936d5f849f9947dff84ca913a"
+  }
+}
