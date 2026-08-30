@@ -1,0 +1,9 @@
+FROM public.ecr.aws/lambda/python:3.12
+
+COPY requirements.txt ${LAMBDA_TASK_ROOT}/requirements.txt
+RUN pip install --no-cache-dir -r ${LAMBDA_TASK_ROOT}/requirements.txt --target ${LAMBDA_TASK_ROOT}
+COPY app ${LAMBDA_TASK_ROOT}/app
+COPY lambdas ${LAMBDA_TASK_ROOT}/lambdas
+COPY models/model-manifest.json models/labels.txt ${LAMBDA_TASK_ROOT}/models/
+ENV PACIFICBIO_ENV=production PACIFICBIO_MODEL_MANIFEST=${LAMBDA_TASK_ROOT}/models/model-manifest.json
+CMD ["lambdas.dispatcher.handler"]

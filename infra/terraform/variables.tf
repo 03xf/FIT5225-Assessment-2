@@ -1,0 +1,12 @@
+variable "project_name" { default = "pacific-bioarchive" }
+variable "aws_region" { default = "ap-southeast-2" }
+variable "gcp_project_id" { type = string }
+variable "gcp_region" { default = "australia-southeast1" }
+variable "gcp_storage_location" { default = "AUSTRALIA-SOUTHEAST1" }
+variable "ui_callback_urls" { default = ["http://localhost:8000"] }
+variable "ui_logout_urls" { default = ["http://localhost:8000"] }
+variable "cognito_domain_prefix" { default = "" }
+variable "worker_image_uri" { default = "" }
+variable "api_lambda_image_uri" { default = "" }
+variable "dispatcher_lambda_image_uri" { default = "" }
+variable "aws_account_id" { default = "" }

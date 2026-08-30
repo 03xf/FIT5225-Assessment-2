@@ -1,0 +1,11 @@
+output "cognito_user_pool_id" { value = aws_cognito_user_pool.users.id }
+output "cognito_client_id" { value = aws_cognito_user_pool_client.web.id }
+output "api_gateway_url" { value = aws_apigatewayv2_api.http.api_endpoint }
+output "primary_media_bucket" { value = aws_s3_bucket.media.id }
+output "metadata_table" { value = aws_dynamodb_table.media.name }
+output "notification_topic_arn" { value = aws_sns_topic.notifications.arn }
+output "gcp_replica_bucket" { value = google_storage_bucket.replica.name }
+output "cloud_run_worker_url" { value = try(google_cloud_run_v2_service.worker[0].uri, null) }
+output "api_ecr_repository_url" { value = aws_ecr_repository.api.repository_url }
+output "dispatcher_ecr_repository_url" { value = aws_ecr_repository.dispatcher.repository_url }
+output "worker_artifact_registry_repository" { value = "${var.gcp_region}-docker.pkg.dev/${var.gcp_project_id}/${google_artifact_registry_repository.worker.repository_id}" }
