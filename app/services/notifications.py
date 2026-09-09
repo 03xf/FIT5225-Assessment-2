@@ -68,8 +68,11 @@ def ensure_email_subscription(settings: Settings, database: Any, owner_sub: str,
             database.upsert_sns_subscription(owner_sub, email, subscription_arn, "CONFIRMED")
             return EmailSubscriptionStatus(confirmation_pending=False, state="active")
 
-        database.upsert_sns_subscription(owner_sub, email, subscription_arn or "PendingConfirmation", "PENDING")
-        return EmailSubscriptionStatus(confirmation_pending=True, state="confirmation-pending")
+        if subscription_arn == "PendingConfirmation":
+            database.upsert_sns_subscription(owner_sub, email, subscription_arn, "PENDING")
+            return EmailSubscriptionStatus(confirmation_pending=True, state="confirmation-pending")
+        # SNS retains a Deleted placeholder after an unsubscribe. It cannot
+        # receive notifications or be updated, so create a fresh subscription.
 
     response = client.subscribe(
         TopicArn=settings.sns_topic_arn,
