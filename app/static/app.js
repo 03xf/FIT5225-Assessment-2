@@ -98,6 +98,27 @@ async function openProtectedMedia(event) {
     setStatus(error.message, true);
   }
 }
+async function copyThumbnailUrl(event) {
+  const thumbnailUrl = event.currentTarget.dataset.thumbnailUrl;
+  if (!thumbnailUrl) return;
+  const value = new URL(thumbnailUrl, window.location.href).href;
+  try {
+    if (navigator.clipboard?.writeText && window.isSecureContext) {
+      await navigator.clipboard.writeText(value);
+    } else {
+      const field = document.createElement("textarea");
+      field.value = value;
+      field.style.position = "fixed";
+      document.body.append(field);
+      field.select();
+      if (!document.execCommand("copy")) throw new Error("Clipboard access was denied");
+      field.remove();
+    }
+    setStatus("Thumbnail URL copied.");
+  } catch (error) {
+    setStatus(`Unable to copy thumbnail URL: ${error.message}`, true);
+  }
+}
 function render(media) {
   state.media = media;
   clearPreviewObjectUrls();
@@ -120,6 +141,13 @@ function render(media) {
     const sourceLink = node.querySelector(".source-link");
     sourceLink.dataset.sourceUrl = item.source_url;
     sourceLink.addEventListener("click", openProtectedMedia);
+    const copyThumbnailButton = node.querySelector(".thumbnail-url-copy");
+    if (item.thumbnail_url) {
+      copyThumbnailButton.dataset.thumbnailUrl = item.thumbnail_url;
+      copyThumbnailButton.addEventListener("click", copyThumbnailUrl);
+    } else {
+      copyThumbnailButton.remove();
+    }
     grid.append(node);
     if (item.thumbnail_url) loadThumbnail(grid.lastElementChild.querySelector(".thumbnail"), grid.lastElementChild.querySelector(".preview-link"), item.thumbnail_url);
   }
