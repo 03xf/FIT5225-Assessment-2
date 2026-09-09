@@ -5,6 +5,8 @@ import json
 from dataclasses import dataclass
 from typing import Any
 
+from botocore.exceptions import ClientError
+
 from app.config import Settings
 
 
@@ -74,13 +76,26 @@ def ensure_email_subscription(settings: Settings, database: Any, owner_sub: str,
         # SNS retains a Deleted placeholder after an unsubscribe. It cannot
         # receive notifications or be updated, so create a fresh subscription.
 
-    response = client.subscribe(
-        TopicArn=settings.sns_topic_arn,
-        Protocol="email",
-        Endpoint=email,
-        Attributes={"FilterPolicy": json.dumps({"species": sorted(species)})},
-        ReturnSubscriptionArn=True,
-    )
+    subscribe_args = {
+        "TopicArn": settings.sns_topic_arn,
+        "Protocol": "email",
+        "Endpoint": email,
+        "ReturnSubscriptionArn": True,
+    }
+    try:
+        response = client.subscribe(
+            **subscribe_args,
+            Attributes={"FilterPolicy": json.dumps({"species": sorted(species)})},
+        )
+    except ClientError as error:
+        message = error.response.get("Error", {}).get("Message", "")
+        if "Subscription already exists with different attributes" not in message:
+            raise
+        # SNS can retain old subscription attributes after an unsubscribe even
+        # when ListSubscriptions reports Deleted. Retrying without attributes
+        # sends a fresh confirmation; after confirmation, a later request
+        # reconciles the merged filter policy through the real ARN.
+        response = client.subscribe(**subscribe_args)
     subscription_arn = str(response.get("SubscriptionArn", "PendingConfirmation"))
     # Email protocol subscriptions require the recipient to confirm delivery.
     # SNS can return an ARN before that confirmation, so it is not evidence

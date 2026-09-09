@@ -1,5 +1,7 @@
 import json
 
+from botocore.exceptions import ClientError
+
 from app.config import Settings
 from app.services.notifications import ensure_email_subscription
 
@@ -64,21 +66,33 @@ def test_deleted_email_subscription_is_recreated(monkeypatch):
             return [{"Subscriptions": [{"Endpoint": "user@example.com", "SubscriptionArn": "Deleted"}]}]
 
     class DeletedSns:
+        def __init__(self):
+            self.calls = []
+
         def get_paginator(self, name):
             assert name == "list_subscriptions_by_topic"
             return DeletedPaginator()
 
         def subscribe(self, **kwargs):
-            assert json.loads(kwargs["Attributes"]["FilterPolicy"]) == {
-                "species": ["alectura_lathami", "casuarius_casuarius"]
-            }
+            self.calls.append(kwargs)
+            if len(self.calls) == 1:
+                assert json.loads(kwargs["Attributes"]["FilterPolicy"]) == {
+                    "species": ["alectura_lathami", "casuarius_casuarius"]
+                }
+                raise ClientError(
+                    {"Error": {"Code": "InvalidParameter", "Message": "Subscription already exists with different attributes"}},
+                    "Subscribe",
+                )
+            assert "Attributes" not in kwargs
             return {"SubscriptionArn": "PendingConfirmation"}
 
-    monkeypatch.setattr("boto3.client", lambda *_args, **_kwargs: DeletedSns())
+    sns = DeletedSns()
+    monkeypatch.setattr("boto3.client", lambda *_args, **_kwargs: sns)
     database = FakeDatabase()
     settings = Settings(sns_topic_arn="arn:aws:sns:topic", aws_region="ap-southeast-2")
 
     result = ensure_email_subscription(settings, database, "user-a", "user@example.com")
 
     assert result.confirmation_pending is True
+    assert len(sns.calls) == 2
     assert database.records == [("user-a", "user@example.com", "PendingConfirmation", "PENDING")]
