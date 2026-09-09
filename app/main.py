@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile, status
-from fastapi.responses import FileResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.config import Settings, get_settings
@@ -155,7 +155,17 @@ def media_content(media_id: str, user: CurrentUser, media_service: MediaService 
         item = database.get_media(media_id, user.subject)
         if not item:
             raise HTTPException(status_code=404, detail="Media not found")
-        return RedirectResponse(S3Storage(settings).download_url(item["source_path"]))
+        # Proxy the private source object through the authenticated API. A
+        # browser fetch follows a presigned S3 redirect cross-origin, where S3
+        # CORS can block access to the response body.
+        storage = S3Storage(settings)
+        try:
+            obj = storage.client.get_object(Bucket=storage.bucket, Key=item["source_path"])
+        except Exception as exc:
+            if getattr(exc, "response", {}).get("Error", {}).get("Code") in {"404", "NoSuchKey", "NotFound"}:
+                raise HTTPException(status_code=404, detail="Media object not found") from exc
+            raise
+        return StreamingResponse(obj["Body"].iter_chunks(), media_type=obj.get("ContentType", item["content_type"]))
     try:
         path, media_type = media_service.get_owned_path(media_id, user.subject)
     except FileNotFoundError as exc:
