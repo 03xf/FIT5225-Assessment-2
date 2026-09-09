@@ -58,6 +58,38 @@ async function loadThumbnail(image, link, thumbnailUrl) {
     link.textContent = "Thumbnail unavailable";
   }
 }
+async function openProtectedMedia(event) {
+  event.preventDefault();
+  const sourceUrl = event.currentTarget.dataset.sourceUrl;
+  if (!sourceUrl) return;
+
+  // Open synchronously so browsers treat this as a user-initiated new tab.
+  const mediaWindow = window.open("", "_blank");
+  if (!mediaWindow) {
+    setStatus("Your browser blocked the media tab. Allow pop-ups and try again.", true);
+    return;
+  }
+
+  try {
+    const target = new URL(sourceUrl, window.location.href);
+    const headers = new Headers();
+    if (state.environment === "production" && target.origin === window.location.origin) {
+      const token = localStorage.getItem("pacificbio-id-token");
+      if (!token) throw new Error("Sign in before opening media.");
+      headers.set("Authorization", `Bearer ${token}`);
+    } else if (state.environment !== "production") {
+      headers.set("X-Demo-User", state.user);
+    }
+    const response = await fetch(target.href, { headers });
+    if (!response.ok) throw new Error(`Media request failed (${response.status})`);
+    const objectUrl = URL.createObjectURL(await response.blob());
+    previewObjectUrls.add(objectUrl);
+    mediaWindow.location.replace(objectUrl);
+  } catch (error) {
+    mediaWindow.close();
+    setStatus(error.message, true);
+  }
+}
 function render(media) {
   state.media = media;
   clearPreviewObjectUrls();
@@ -71,13 +103,15 @@ function render(media) {
     card.dataset.url = item.source_url;
     const thumbnail = node.querySelector(".thumbnail");
     const previewLink = node.querySelector(".preview-link");
-    if (item.thumbnail_url) { previewLink.href = item.source_url; }
-    else { thumbnail.remove(); previewLink.textContent = item.media_type === "video" ? "Video processing completed" : "No thumbnail"; previewLink.href = item.source_url; }
+    if (item.thumbnail_url) { previewLink.dataset.sourceUrl = item.source_url; previewLink.addEventListener("click", openProtectedMedia); }
+    else { thumbnail.remove(); previewLink.textContent = item.media_type === "video" ? "Video processing completed" : "No thumbnail"; previewLink.dataset.sourceUrl = item.source_url; previewLink.addEventListener("click", openProtectedMedia); }
     node.querySelector(".filename").textContent = item.original_name;
     node.querySelector(".metadata").textContent = `${item.media_type} | ${item.status.toLowerCase()} | ${item.model_version || "not classified"}`;
     const tags = node.querySelector(".tags");
     Object.entries(item.tags).forEach(([name, detail]) => { const chip = document.createElement("span"); chip.className = "tag"; chip.textContent = `${name} x ${detail.count}`; tags.append(chip); });
-    node.querySelector(".source-link").href = item.source_url;
+    const sourceLink = node.querySelector(".source-link");
+    sourceLink.dataset.sourceUrl = item.source_url;
+    sourceLink.addEventListener("click", openProtectedMedia);
     grid.append(node);
     if (item.thumbnail_url) loadThumbnail(grid.lastElementChild.querySelector(".thumbnail"), grid.lastElementChild.querySelector(".preview-link"), item.thumbnail_url);
   }
