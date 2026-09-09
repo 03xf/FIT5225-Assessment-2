@@ -69,6 +69,8 @@ async function openProtectedMedia(event) {
     setStatus("Your browser blocked the media tab. Allow pop-ups and try again.", true);
     return;
   }
+  mediaWindow.document.title = "Opening Pacific BioArchive media";
+  mediaWindow.document.body.innerHTML = "<p style=\"font:16px system-ui;padding:2rem\">Loading protected media...</p>";
 
   try {
     const target = new URL(sourceUrl, window.location.href);
@@ -82,11 +84,17 @@ async function openProtectedMedia(event) {
     }
     const response = await fetch(target.href, { headers });
     if (!response.ok) throw new Error(`Media request failed (${response.status})`);
-    const objectUrl = URL.createObjectURL(await response.blob());
+    const blob = await response.blob();
+    const objectUrl = URL.createObjectURL(blob);
     previewObjectUrls.add(objectUrl);
-    mediaWindow.location.replace(objectUrl);
+    const mediaElement = blob.type.startsWith("video/")
+      ? `<video controls autoplay src="${objectUrl}" style="max-width:100%;max-height:100vh"></video>`
+      : `<img alt="Full-size wildlife media" src="${objectUrl}" style="max-width:100%;height:auto">`;
+    mediaWindow.document.title = "Pacific BioArchive media";
+    mediaWindow.document.body.innerHTML = `<main style="margin:0;display:grid;place-items:center;min-height:100vh;background:#111">${mediaElement}</main>`;
   } catch (error) {
-    mediaWindow.close();
+    mediaWindow.document.title = "Unable to open media";
+    mediaWindow.document.body.innerHTML = `<p style="font:16px system-ui;padding:2rem">Unable to open protected media: ${error.message}</p>`;
     setStatus(error.message, true);
   }
 }
