@@ -55,6 +55,17 @@ CREATE TABLE IF NOT EXISTS notifications (
   channel TEXT NOT NULL,
   status TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS query_jobs (
+  id TEXT PRIMARY KEY,
+  owner_sub TEXT NOT NULL,
+  source_path TEXT NOT NULL,
+  status TEXT NOT NULL,
+  tags_json TEXT,
+  match_ids_json TEXT,
+  detail TEXT,
+  created_at TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 """
 
 
@@ -242,6 +253,33 @@ class Database:
                 "INSERT INTO notifications VALUES (?, ?, ?, ?, ?, ?, ?)",
                 (notification_id, owner_sub, species, media_id, utc_now(), "email", status),
             )
+
+    def create_query_job(self, query_id: str, owner_sub: str, source_path: str) -> None:
+        with self.connection() as conn:
+            conn.execute("INSERT INTO query_jobs VALUES (?, ?, ?, 'QUEUED', NULL, NULL, NULL, ?, ?)", (query_id, owner_sub, source_path, utc_now(), utc_now()))
+
+    def get_query_job(self, query_id: str, owner_sub: str) -> dict | None:
+        with self.connection() as conn:
+            row = conn.execute("SELECT * FROM query_jobs WHERE id=? AND owner_sub=?", (query_id, owner_sub)).fetchone()
+        if not row:
+            return None
+        item = dict(row)
+        item["tags"] = json.loads(item.pop("tags_json") or "{}")
+        item["match_ids"] = json.loads(item.pop("match_ids_json") or "[]")
+        return item
+
+    def claim_query_job(self, query_id: str, owner_sub: str) -> dict | None:
+        with self.connection() as conn:
+            changed = conn.execute("UPDATE query_jobs SET status='PROCESSING', updated_at=? WHERE id=? AND owner_sub=? AND status='QUEUED'", (utc_now(), query_id, owner_sub))
+        return self.get_query_job(query_id, owner_sub) if changed.rowcount else None
+
+    def finish_query_job(self, query_id: str, owner_sub: str, tags: dict, match_ids: list[str], detail: str | None = None) -> None:
+        with self.connection() as conn:
+            conn.execute("UPDATE query_jobs SET status='READY', tags_json=?, match_ids_json=?, detail=?, updated_at=? WHERE id=? AND owner_sub=?", (json.dumps(tags), json.dumps(match_ids), detail, utc_now(), query_id, owner_sub))
+
+    def fail_query_job(self, query_id: str, owner_sub: str, detail: str) -> None:
+        with self.connection() as conn:
+            conn.execute("UPDATE query_jobs SET status='FAILED', detail=?, updated_at=? WHERE id=? AND owner_sub=?", (detail[:500], utc_now(), query_id, owner_sub))
 
 
 def create_database(settings: Settings):

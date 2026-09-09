@@ -363,8 +363,8 @@ resource "aws_iam_role_policy" "dispatcher" {
   policy = jsonencode({ Version = "2012-10-17", Statement = [
     { Effect = "Allow", Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"], Resource = "*" },
     { Effect = "Allow", Action = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes"], Resource = aws_sqs_queue.processing.arn },
-    { Effect = "Allow", Action = ["s3:GetObject", "s3:PutObject"], Resource = ["${aws_s3_bucket.media.arn}/raw/*", "${aws_s3_bucket.media.arn}/thumbnails/*"] },
-    { Effect = "Allow", Action = ["dynamodb:GetItem", "dynamodb:UpdateItem"], Resource = [aws_dynamodb_table.media.arn, "${aws_dynamodb_table.media.arn}/index/*"] }
+    { Effect = "Allow", Action = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"], Resource = ["${aws_s3_bucket.media.arn}/raw/*", "${aws_s3_bucket.media.arn}/thumbnails/*", "${aws_s3_bucket.media.arn}/temporary-query/*"] },
+    { Effect = "Allow", Action = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:Query"], Resource = [aws_dynamodb_table.media.arn, "${aws_dynamodb_table.media.arn}/index/*"] }
   ] })
 }
 resource "aws_lambda_function" "dispatcher" {

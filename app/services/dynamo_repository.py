@@ -292,3 +292,25 @@ class DynamoRepository:
 
     def record_notification(self, notification_id: str, owner_sub: str, species: str, media_id: str, status: str) -> None:
         self.table.put_item(Item={"PK": self.user_pk(owner_sub), "SK": f"NOTIFICATION#{notification_id}", "entity": "notification", "species": species, "media_id": media_id, "channel": "email", "status": status, "created_at": now()})
+
+    def create_query_job(self, query_id: str, owner_sub: str, source_path: str) -> None:
+        timestamp = now()
+        self.table.put_item(Item={"PK": self.user_pk(owner_sub), "SK": f"QUERY#{query_id}", "entity": "query-job", "id": query_id, "owner_sub": owner_sub, "source_path": source_path, "status": "QUEUED", "tags": {}, "match_ids": [], "created_at": timestamp, "updated_at": timestamp})
+
+    def get_query_job(self, query_id: str, owner_sub: str) -> dict | None:
+        return self.table.get_item(Key={"PK": self.user_pk(owner_sub), "SK": f"QUERY#{query_id}"}, ConsistentRead=True).get("Item")
+
+    def claim_query_job(self, query_id: str, owner_sub: str) -> dict | None:
+        try:
+            self.table.update_item(Key={"PK": self.user_pk(owner_sub), "SK": f"QUERY#{query_id}"}, UpdateExpression="SET #status=:processing, updated_at=:updated", ConditionExpression="#status=:queued", ExpressionAttributeNames={"#status": "status"}, ExpressionAttributeValues={":processing": "PROCESSING", ":queued": "QUEUED", ":updated": now()})
+        except ClientError as exc:
+            if exc.response.get("Error", {}).get("Code") == "ConditionalCheckFailedException":
+                return None
+            raise
+        return self.get_query_job(query_id, owner_sub)
+
+    def finish_query_job(self, query_id: str, owner_sub: str, tags: dict, match_ids: list[str], detail: str | None = None) -> None:
+        self.table.update_item(Key={"PK": self.user_pk(owner_sub), "SK": f"QUERY#{query_id}"}, UpdateExpression="SET #status=:status, tags=:tags, match_ids=:matches, detail=:detail, updated_at=:updated", ExpressionAttributeNames={"#status": "status"}, ExpressionAttributeValues={":status": "READY", ":tags": tags, ":matches": match_ids, ":detail": detail, ":updated": now()})
+
+    def fail_query_job(self, query_id: str, owner_sub: str, detail: str) -> None:
+        self.table.update_item(Key={"PK": self.user_pk(owner_sub), "SK": f"QUERY#{query_id}"}, UpdateExpression="SET #status=:status, detail=:detail, updated_at=:updated", ExpressionAttributeNames={"#status": "status"}, ExpressionAttributeValues={":status": "FAILED", ":detail": detail[:500], ":updated": now()})

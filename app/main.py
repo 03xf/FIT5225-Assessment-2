@@ -15,7 +15,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import Settings, get_settings
 from app.db import create_database
 from app.schemas import (
-    BulkDeleteRequest, BulkTagRequest, MediaResponse, SpeciesSearchRequest,
+    BulkDeleteRequest, BulkTagRequest, MediaResponse, QueryJobResponse, SpeciesSearchRequest,
     SubscriptionRequest, TagSearchRequest, ThumbnailResolveRequest, UploadSessionRequest, UploadSessionResponse, WorkerCallback,
 )
 from app.services.auth import CurrentUser
@@ -306,11 +306,11 @@ async def worker_callback(request: Request, database=Depends(get_database), sett
     return MediaService.response(saved)
 
 
-@app.post("/api/search/by-file", response_model=list[MediaResponse])
+@app.post("/api/search/by-file", response_model=QueryJobResponse, status_code=status.HTTP_202_ACCEPTED)
 async def search_by_file(
     user: CurrentUser, file: UploadFile = File(...), database=Depends(get_database), settings: Settings = Depends(get_settings)
-) -> list[MediaResponse]:
-    """Process a temporary query upload and never persist it in the media database."""
+) -> QueryJobResponse:
+    """Queue an ephemeral query so the API never waits for model inference."""
     if not (file.content_type or "").startswith("image/"):
         raise HTTPException(status_code=415, detail="Query-by-file accepts images")
     with tempfile.TemporaryDirectory(prefix="pacificbio-query-") as temp_dir:
@@ -323,27 +323,39 @@ async def search_by_file(
                     raise HTTPException(status_code=413, detail="Query file exceeds the configured upload limit")
                 output.write(chunk)
         if settings.uses_cloud_persistence:
-            if not all([settings.alibaba_processor_url, settings.worker_shared_key]):
+            if not all([settings.alibaba_processor_url, settings.worker_shared_key, settings.aws_processing_queue_url]):
                 raise HTTPException(status_code=503, detail="Cloud query worker is not configured")
-            temporary_key = f"temporary-query/{user.subject}/{uuid.uuid4()}/{destination.name}"
+            query_id = str(uuid.uuid4())
+            temporary_key = f"temporary-query/{user.subject}/{query_id}/{destination.name}"
             storage = S3Storage(settings)
             storage.upload_file(temporary_key, str(destination), file.content_type or "image/jpeg")
             try:
-                response = await invoke_worker(
-                    settings.alibaba_processor_url,
-                    "/query",
-                    {"input_url": storage.download_url(temporary_key, expires_seconds=900)},
-                    settings.worker_shared_key,
+                database.create_query_job(query_id, user.subject, temporary_key)
+                import boto3
+                boto3.client("sqs", region_name=settings.aws_region).send_message(
+                    QueueUrl=settings.aws_processing_queue_url,
+                    MessageBody=__import__("json").dumps({"kind": "query", "query_id": query_id, "owner_sub": user.subject}),
                 )
-                tags = response.json().get("tags", {})
-            finally:
+            except Exception:
                 storage.delete([temporary_key])
-        else:
-            tags = InferenceService(settings).infer_image(destination, file.filename or destination.name).tags
-    if not tags or "unclassified" in tags:
-        return []
-    requested = {species: detail["count"] for species, detail in tags.items()}
-    return [MediaService.response(item) for item in database.search_tags(user.subject, requested)]
+                raise
+            return QueryJobResponse(query_id=query_id, status="QUEUED")
+        tags = InferenceService(settings).infer_image(destination, file.filename or destination.name).tags
+    query_id = str(uuid.uuid4())
+    requested = {species: detail["count"] for species, detail in tags.items()} if tags and "unclassified" not in tags else {}
+    matches = [MediaService.response(item) for item in database.search_tags(user.subject, requested)] if requested else []
+    return QueryJobResponse(query_id=query_id, status="READY", matches=matches)
+
+
+@app.get("/api/search/by-file/{query_id}", response_model=QueryJobResponse)
+def query_status(query_id: str, user: CurrentUser, database=Depends(get_database)) -> QueryJobResponse:
+    job = database.get_query_job(query_id, user.subject)
+    if not job:
+        raise HTTPException(status_code=404, detail="Query job not found")
+    matches = None
+    if job["status"] == "READY":
+        matches = [MediaService.response(item) for item in (database.get_media(media_id, user.subject) for media_id in job.get("match_ids", [])) if item]
+    return QueryJobResponse(query_id=query_id, status=job["status"], matches=matches, detail=job.get("detail"))
 
 
 # Keep the SPA/static mount last: mounted routes are prefix routes and would

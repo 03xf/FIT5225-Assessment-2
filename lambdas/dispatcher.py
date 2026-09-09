@@ -22,6 +22,9 @@ def required(name: str) -> str:
 def dispatch(message: dict[str, Any]) -> None:
     settings = Settings()
     repository = create_database(settings)
+    if message.get("kind") == "query":
+        dispatch_query(message, settings, repository)
+        return
     media_id = str(message["media_id"])
     owner_sub = str(message["owner_sub"])
     item = repository.get_media(media_id, owner_sub)
@@ -48,6 +51,32 @@ def dispatch(message: dict[str, Any]) -> None:
     except Exception:
         repository.release_dispatch(media_id, owner_sub)
         raise
+
+
+def dispatch_query(message: dict[str, Any], settings: Settings, repository: Any) -> None:
+    """Run the slow query outside API Gateway and persist a pollable result."""
+    query_id = str(message["query_id"])
+    owner_sub = str(message["owner_sub"])
+    job = repository.claim_query_job(query_id, owner_sub)
+    if not job:
+        return
+    storage = S3Storage(settings)
+    try:
+        import asyncio
+        response = asyncio.run(invoke_worker(
+            required("PACIFICBIO_ALIBABA_PROCESSOR_URL").rstrip("/"),
+            "/query",
+            {"input_url": storage.download_url(job["source_path"], expires_seconds=900)},
+            required("PACIFICBIO_WORKER_SHARED_KEY"),
+        ))
+        tags = response.json().get("tags", {})
+        requested = {name: int(detail.get("count", 1)) for name, detail in tags.items()}
+        matches = repository.search_tags(owner_sub, requested) if requested else []
+        repository.finish_query_job(query_id, owner_sub, tags, [item["id"] for item in matches])
+    except Exception as exc:
+        repository.fail_query_job(query_id, owner_sub, f"Query processing failed: {type(exc).__name__}")
+    finally:
+        storage.delete([job["source_path"]])
 
 
 def handler(event: dict[str, Any], _context: Any) -> dict[str, int]:

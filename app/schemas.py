@@ -56,6 +56,13 @@ class SubscriptionRequest(BaseModel):
     species: str = Field(min_length=1, max_length=120)
 
 
+class QueryJobResponse(BaseModel):
+    query_id: str
+    status: Literal["QUEUED", "PROCESSING", "READY", "FAILED"]
+    matches: list[MediaResponse] | None = None
+    detail: str | None = None
+
+
 class UploadSessionRequest(BaseModel):
     filename: str = Field(min_length=1, max_length=255)
     content_type: str = Field(min_length=1, max_length=120)
