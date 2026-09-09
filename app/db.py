@@ -55,6 +55,13 @@ CREATE TABLE IF NOT EXISTS notifications (
   channel TEXT NOT NULL,
   status TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS sns_subscriptions (
+  owner_sub TEXT PRIMARY KEY,
+  email TEXT NOT NULL,
+  subscription_arn TEXT NOT NULL,
+  status TEXT NOT NULL,
+  updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS query_jobs (
   id TEXT PRIMARY KEY,
   owner_sub TEXT NOT NULL,
@@ -246,6 +253,17 @@ class Database:
     def subscriptions_for(self, species: str) -> list[str]:
         with self.connection() as conn:
             return [row["owner_sub"] for row in conn.execute("SELECT owner_sub FROM subscriptions WHERE species=?", (species.lower(),))]
+
+    def subscriptions_for_owner(self, owner_sub: str) -> list[str]:
+        with self.connection() as conn:
+            return [row["species"] for row in conn.execute("SELECT species FROM subscriptions WHERE owner_sub=? ORDER BY species", (owner_sub,))]
+
+    def upsert_sns_subscription(self, owner_sub: str, email: str, subscription_arn: str, status: str) -> None:
+        with self.connection() as conn:
+            conn.execute(
+                "INSERT INTO sns_subscriptions VALUES (?, ?, ?, ?, ?) ON CONFLICT(owner_sub) DO UPDATE SET email=excluded.email, subscription_arn=excluded.subscription_arn, status=excluded.status, updated_at=excluded.updated_at",
+                (owner_sub, email, subscription_arn, status, utc_now()),
+            )
 
     def record_notification(self, notification_id: str, owner_sub: str, species: str, media_id: str, status: str) -> None:
         with self.connection() as conn:

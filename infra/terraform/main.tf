@@ -254,7 +254,7 @@ resource "aws_iam_role_policy" "api" {
       { Effect = "Allow", Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"], Resource = "*" },
       { Effect = "Allow", Action = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"], Resource = ["${aws_s3_bucket.media.arn}/raw/*", "${aws_s3_bucket.media.arn}/thumbnails/*", "${aws_s3_bucket.media.arn}/temporary-query/*"] },
       { Effect = "Allow", Action = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:UpdateItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:BatchWriteItem", "dynamodb:TransactWriteItems"], Resource = [aws_dynamodb_table.media.arn, "${aws_dynamodb_table.media.arn}/index/*"] },
-      { Effect = "Allow", Action = ["sns:Publish", "sns:Subscribe"], Resource = aws_sns_topic.notifications.arn },
+      { Effect = "Allow", Action = ["sns:Publish", "sns:Subscribe", "sns:ListSubscriptionsByTopic", "sns:GetSubscriptionAttributes", "sns:SetSubscriptionAttributes"], Resource = aws_sns_topic.notifications.arn },
       { Effect = "Allow", Action = ["sqs:SendMessage"], Resource = aws_sqs_queue.processing.arn }
     ]
   })

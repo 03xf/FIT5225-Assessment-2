@@ -290,6 +290,20 @@ class DynamoRepository:
         response = self.table.query(IndexName="subscription-index", KeyConditionExpression=Key("GSI3PK").eq(f"SUB#{species.lower()}"))
         return [item["owner_sub"] for item in response.get("Items", [])]
 
+    def subscriptions_for_owner(self, owner_sub: str) -> list[str]:
+        records = self._query_all(
+            KeyConditionExpression=Key("PK").eq(self.user_pk(owner_sub)) & Key("SK").begins_with("SUB#")
+        )
+        return sorted(str(item["species"]) for item in records)
+
+    def upsert_sns_subscription(self, owner_sub: str, email: str, subscription_arn: str, status: str) -> None:
+        timestamp = now()
+        self.table.put_item(Item={
+            "PK": self.user_pk(owner_sub), "SK": "SNS#EMAIL", "entity": "sns-email-subscription",
+            "owner_sub": owner_sub, "email": email, "subscription_arn": subscription_arn,
+            "status": status, "updated_at": timestamp, "created_at": timestamp,
+        })
+
     def record_notification(self, notification_id: str, owner_sub: str, species: str, media_id: str, status: str) -> None:
         self.table.put_item(Item={"PK": self.user_pk(owner_sub), "SK": f"NOTIFICATION#{notification_id}", "entity": "notification", "species": species, "media_id": media_id, "channel": "email", "status": status, "created_at": now()})
 

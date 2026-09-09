@@ -22,6 +22,7 @@ from app.services.auth import CurrentUser
 from app.services.alibaba_fc import invoke_worker
 from app.services.inference import InferenceService
 from app.services.media import MediaService
+from app.services.notifications import ensure_email_subscription
 from app.services.s3_storage import S3Storage
 
 MEDIA_URL = re.compile(r"^/api/media/([0-9a-f-]{36})/(?:content|thumbnail)$")
@@ -257,18 +258,12 @@ def delete_media(request: BulkDeleteRequest, user: CurrentUser, media_service: M
 @app.post("/api/subscriptions", status_code=status.HTTP_201_CREATED)
 def subscribe(request: SubscriptionRequest, user: CurrentUser, database=Depends(get_database), settings: Settings = Depends(get_settings)) -> dict:
     created = database.subscribe(user.subject, request.species)
-    confirmation_pending = False
-    if created and settings.sns_topic_arn and user.email:
-        import boto3
-        boto3.client("sns", region_name=settings.aws_region).subscribe(
-            TopicArn=settings.sns_topic_arn,
-            Protocol="email",
-            Endpoint=user.email,
-            Attributes={"FilterPolicy": __import__("json").dumps({"species": [request.species.lower()]})},
-            ReturnSubscriptionArn=True,
-        )
-        confirmation_pending = True
-    return {"species": request.species.lower(), "status": "subscribed" if created else "already-subscribed", "email_confirmation_pending": confirmation_pending}
+    email_status = ensure_email_subscription(settings, database, user.subject, user.email)
+    return {
+        "species": request.species.lower(), "status": "subscribed" if created else "already-subscribed",
+        "email_confirmation_pending": email_status.confirmation_pending,
+        "email_notification_status": email_status.state,
+    }
 
 
 @app.post("/internal/worker-callback", response_model=MediaResponse)
