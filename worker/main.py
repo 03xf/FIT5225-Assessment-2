@@ -49,6 +49,8 @@ CALLBACK_SECRET = os.getenv("CALLBACK_HMAC_SECRET", "")
 DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 TRANSFORM = transforms.Compose([transforms.Resize((480, 480)), transforms.ToTensor()])
 _model: Any | None = None
+_detector: Any | None = None
+_detector_version: str | None = None
 
 
 class ProcessRequest(BaseModel):
@@ -123,16 +125,30 @@ def load_classifier(manifest: dict):
 def detector_records(image_path: Path, manifest: dict) -> list[dict]:
     try:
         from megadetector.detection import run_detector_batch
+        from megadetector.detection.run_detector import load_detector
     except ModuleNotFoundError:
         # MegaDetector 5.x installs its modules at the top level, while newer
         # releases use the megadetector package namespace.
         from detection import run_detector_batch
+        from detection.run_detector import load_detector
 
     detector = model_asset(manifest["detector"])
     expected = manifest["detector"]["sha256"].lower()
     if sha256_file(detector).lower() != expected:
         raise RuntimeError("Detector checksum does not match the active manifest")
-    response = run_detector_batch.load_and_run_detector_batch(image_file_names=[str(image_path)], model_file=str(detector))
+    global _detector, _detector_version
+    if _detector is None or _detector_version != expected:
+        _detector = load_detector(str(detector))
+        _detector_version = expected
+    # Passing the loaded detector avoids load_and_run_detector_batch's path
+    # based loader, which would deserialize the detector for every image.
+    result = run_detector_batch._process_image(
+        str(image_path),
+        _detector,
+        confidence_threshold=0.005,
+        quiet=True,
+    )
+    response = [result]
     if isinstance(response, dict):
         return response.get("images", response.get("results", []))
     return response
